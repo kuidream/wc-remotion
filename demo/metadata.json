@@ -1,0 +1,6 @@
+{
+  "name": "Arena Sim",
+  "description": "A visually striking mobile football match simulator using elastic physics and ethereal particles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
