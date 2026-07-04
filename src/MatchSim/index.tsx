@@ -7,9 +7,10 @@ import { MATCH_SIM_DURATION } from "./simulation";
 
 const calculateMetadata: CalculateMetadataFunction<MatchSimProps> = async () => {
   return {
-    defaultCodec: "vp9",
+    defaultCodec: "prores",
     defaultVideoImageFormat: "png",
-    defaultPixelFormat: "yuva420p",
+    defaultPixelFormat: "yuva444p10le",
+    defaultProResProfile: "4444",
   };
 };
 

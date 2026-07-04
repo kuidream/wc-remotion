@@ -28,7 +28,9 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc"
+    "lint": "eslint src && tsc",
+    "render:match-sim": "remotion render MatchSim out/match-sim.mov --image-format=png --pixel-format=yuva444p10le --codec=prores --prores-profile=4444 --props=props-matchsim.json",
+    "render:match-sim-webm": "remotion render MatchSim out/match-sim.webm --image-format=png --pixel-format=yuva420p --codec=vp9 --props=props-matchsim.json"
   },
   "sideEffects": [
     "*.css"
