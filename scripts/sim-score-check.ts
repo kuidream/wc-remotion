@@ -12,5 +12,5 @@ const run = (label: string, props: typeof defaultMatchSimProps) => {
   console.log(`${label}: ${state.scoreA}-${state.scoreB}`);
 };
 
-run("France boost", defaultMatchSimProps);
+run("Mexico vs England", defaultMatchSimProps);
 run("50/50", balancedMatchSimProps);

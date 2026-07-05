@@ -50,21 +50,21 @@ export const drawArena = (
   const slowSpin = frames * 0.005;
   const arcs = getRingArcs(state.teamStats, slowSpin, state.ringBonuses);
 
-  drawRing(r - 10, "#ffcc00", arcs.pryOuterStart, arcs.pryOuterEnd, 3, 15);
-  drawRing(r - 10, "#ff3366", arcs.fraOuterStart, arcs.fraOuterEnd, 3, 15);
+  drawRing(r - 10, "#006847", arcs.mexOuterStart, arcs.mexOuterEnd, 3, 15);
+  drawRing(r - 10, "#cf081f", arcs.engOuterStart, arcs.engOuterEnd, 3, 15);
   drawRing(
     r - 30,
-    "#a3e635",
-    arcs.pryInnerStart,
-    arcs.pryInnerEnd,
+    "#22c55e",
+    arcs.mexInnerStart,
+    arcs.mexInnerEnd,
     2,
     10,
   );
   drawRing(
     r - 30,
     "#fca5a5",
-    arcs.fraInnerStart,
-    arcs.fraInnerEnd,
+    arcs.engInnerStart,
+    arcs.engInnerEnd,
     2,
     10,
   );
@@ -139,7 +139,7 @@ export const drawArena = (
 export const drawBeyblade = (
   ctx: CanvasRenderingContext2D,
   b: Ball,
-  flags: { py: HTMLImageElement | null; fr: HTMLImageElement | null },
+  flags: { mx: HTMLImageElement | null; eng: HTMLImageElement | null },
 ) => {
   ctx.save();
   ctx.translate(b.x, b.y);
@@ -180,14 +180,14 @@ export const drawBeyblade = (
     b.radius,
     b.radius,
   );
-  if (b.id === "PRY") {
-    metalGrad.addColorStop(0, "#f9d423");
-    metalGrad.addColorStop(0.5, "#ff4e50");
-    metalGrad.addColorStop(1, "#f9d423");
+  if (b.id === "MEX") {
+    metalGrad.addColorStop(0, "#ce1126");
+    metalGrad.addColorStop(0.5, "#006847");
+    metalGrad.addColorStop(1, "#ffffff");
   } else {
-    metalGrad.addColorStop(0, "#e0e0e0");
-    metalGrad.addColorStop(0.5, "#888888");
-    metalGrad.addColorStop(1, "#e0e0e0");
+    metalGrad.addColorStop(0, "#cf081f");
+    metalGrad.addColorStop(0.5, "#ffffff");
+    metalGrad.addColorStop(1, "#00247d");
   }
   ctx.fillStyle = metalGrad;
   ctx.fill();
@@ -197,7 +197,7 @@ export const drawBeyblade = (
   ctx.arc(0, 0, b.radius * 0.55, 0, Math.PI * 2);
   ctx.clip();
 
-  const flagImg = b.id === "PRY" ? flags.py : flags.fr;
+  const flagImg = b.id === "MEX" ? flags.mx : flags.eng;
   if (flagImg && flagImg.complete && flagImg.naturalWidth > 0) {
     ctx.rotate(-b.rotation);
     ctx.drawImage(
@@ -208,7 +208,7 @@ export const drawBeyblade = (
       b.radius * 1.1,
     );
   } else {
-    ctx.fillStyle = b.id === "PRY" ? "#d52b1e" : "#002654";
+    ctx.fillStyle = b.id === "MEX" ? "#006847" : "#cf081f";
     ctx.fill();
   }
   ctx.restore();
@@ -235,7 +235,7 @@ export const drawBeyblade = (
 export const drawGameCanvas = (
   ctx: CanvasRenderingContext2D,
   state: GameState,
-  flags: { py: HTMLImageElement | null; fr: HTMLImageElement | null },
+  flags: { mx: HTMLImageElement | null; eng: HTMLImageElement | null },
   shakeOffset: { x: number; y: number },
 ) => {
   const { width, height, balls, particles } = state;
@@ -251,13 +251,13 @@ export const drawGameCanvas = (
     ctx.beginPath();
     ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
     ctx.fillStyle =
-      p.team === "PRY"
+      p.team === "MEX"
         ? p.type === "forward"
-          ? "#a3e635"
-          : "#ffcc00"
+          ? "#22c55e"
+          : "#006847"
         : p.type === "forward"
           ? "#fca5a5"
-          : "#ff3366";
+          : "#cf081f";
 
     if (p.cooldown < 30) {
       ctx.shadowBlur = 10;

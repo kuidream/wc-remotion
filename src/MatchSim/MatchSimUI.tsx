@@ -8,6 +8,12 @@ import {
 import type { GameState } from "./types";
 import { formatPercent, type TeamStats } from "./team-stats";
 import { useOverlayOpacity } from "./useMatchSimState";
+import { REGULATION_MINUTES } from "./constants";
+
+const formatMatchMinute = (minute: number) => {
+  if (minute <= REGULATION_MINUTES) return `${minute}'`;
+  return `90+${minute - REGULATION_MINUTES}'`;
+};
 
 const FlagBadge = ({ src, alt, glowColor }: { src: string; alt: string; glowColor: string }) => (
   <div
@@ -96,15 +102,15 @@ export const MatchSimHeader = () => (
             style={{
               width: 12 * VIDEO_SCALE,
               height: 2 * VIDEO_SCALE,
-              background: "#ffcc00",
-              boxShadow: "0 0 5px #ffcc00",
+              background: "#006847",
+              boxShadow: "0 0 5px #006847",
             }}
           />
           <span
             className="text-white/80 uppercase tracking-wider"
             style={{ fontSize: 9 * VIDEO_SCALE }}
           >
-            PRY DEFENSE
+            MEX DEFENSE
           </span>
         </div>
         <div className="flex items-center" style={{ gap: 8 * VIDEO_SCALE }}>
@@ -112,14 +118,14 @@ export const MatchSimHeader = () => (
             className="text-white/80 uppercase tracking-wider"
             style={{ fontSize: 9 * VIDEO_SCALE }}
           >
-            FRA DEFENSE
+            ENG DEFENSE
           </span>
           <div
             style={{
               width: 12 * VIDEO_SCALE,
               height: 2 * VIDEO_SCALE,
-              background: "#ff3366",
-              boxShadow: "0 0 5px #ff3366",
+              background: "#cf081f",
+              boxShadow: "0 0 5px #cf081f",
             }}
           />
         </div>
@@ -142,9 +148,9 @@ export const MatchSimScoreBar = ({ state }: { state: GameState }) => (
   >
     <div className="flex items-center z-10" style={{ gap: 32 * VIDEO_SCALE }}>
       <FlagBadge
-        src="https://flagcdn.com/w160/py.png"
-        alt="Paraguay"
-        glowColor="rgba(34,197,94,0.4)"
+        src="https://flagcdn.com/w160/mx.png"
+        alt="Mexico"
+        glowColor="rgba(0,104,71,0.45)"
       />
 
       <span
@@ -166,7 +172,7 @@ export const MatchSimScoreBar = ({ state }: { state: GameState }) => (
           textShadow: "0 0 12px rgba(255,100,0,0.8)",
         }}
       >
-        {state.matchMinute}'
+        {formatMatchMinute(state.matchMinute)}
       </span>
 
       <span
@@ -181,9 +187,9 @@ export const MatchSimScoreBar = ({ state }: { state: GameState }) => (
       </span>
 
       <FlagBadge
-        src="https://flagcdn.com/w160/fr.png"
-        alt="France"
-        glowColor="rgba(239,68,68,0.4)"
+        src="https://flagcdn.com/w160/gb-eng.png"
+        alt="England"
+        glowColor="rgba(207,8,31,0.45)"
       />
     </div>
 
@@ -226,8 +232,9 @@ export const MatchSimStatsPanel = ({ teamStats }: { teamStats: TeamStats }) => (
         className="text-white/90"
         style={{ fontSize: 11 * VIDEO_SCALE, lineHeight: 1.6 }}
       >
-        <div>进攻: {formatPercent(teamStats.pryOffense)}</div>
-        <div>防守: {formatPercent(teamStats.pryDefense)}</div>
+        <div>进攻: {formatPercent(teamStats.mexOffense)}</div>
+        <div>防守: {formatPercent(teamStats.mexDefense)}</div>
+        <div>球星成色: {formatPercent(teamStats.mexStarQuality)}</div>
       </div>
     </div>
 
@@ -251,8 +258,9 @@ export const MatchSimStatsPanel = ({ teamStats }: { teamStats: TeamStats }) => (
         className="text-white/90"
         style={{ fontSize: 11 * VIDEO_SCALE, lineHeight: 1.6 }}
       >
-        <div>进攻: {formatPercent(teamStats.fraOffense)}</div>
-        <div>防守: {formatPercent(teamStats.fraDefense)}</div>
+        <div>进攻: {formatPercent(teamStats.engOffense)}</div>
+        <div>防守: {formatPercent(teamStats.engDefense)}</div>
+        <div>球星成色: {formatPercent(teamStats.engStarQuality)}</div>
       </div>
     </div>
   </div>

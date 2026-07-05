@@ -15,6 +15,10 @@ export const MIN_SPEED = 1.5;
 export const BALL_RADIUS = 20;
 export const BASE_SPEED = 3.0;
 
+export const REGULATION_MINUTES = 90;
+export const INJURY_TIME_MIN = 5;
+export const INJURY_TIME_MAX = 15;
+
 export const PRE_DURATION_SECONDS = 2;
 export const POST_DURATION_SECONDS = 3;
 export const PRE_DURATION_FRAMES = PRE_DURATION_SECONDS * VIDEO_FPS;
@@ -26,6 +30,6 @@ export const TICKS_PER_MATCH_MINUTE = 30;
 export const PHYSICS_SUBSTEPS = 1;
 export const FRAMES_PER_MATCH_MINUTE =
   TICKS_PER_MATCH_MINUTE / PHYSICS_SUBSTEPS;
-export const GOAL_RESET_DELAY = VIDEO_FPS;
+export const GOAL_RESET_DELAY = VIDEO_FPS; // demo: setTimeout 1000ms @ 60Hz
 
 export const SIMULATION_SEED = 42;

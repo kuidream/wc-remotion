@@ -30,7 +30,7 @@ export interface Particle {
 
 export interface Player {
   id: string;
-  team: "PRY" | "FRA";
+  team: "MEX" | "ENG";
   type: "goalkeeper" | "defender" | "midfielder" | "forward";
   x: number;
   y: number;
@@ -73,6 +73,7 @@ export interface GameState {
   scoreA: number;
   scoreB: number;
   matchLength: number;
+  injuryTime: number;
   matchMinute: number;
   balls: Ball[];
   particles: Particle[];
@@ -84,12 +85,13 @@ export interface GameState {
   hitStop: number;
   goalFlash: number;
   ringBonuses: {
-    PRY: { inner: number; outer: number };
-    FRA: { inner: number; outer: number };
+    MEX: { inner: number; outer: number };
+    ENG: { inner: number; outer: number };
   };
   players: Player[];
   lightnings: Lightning[];
   goalResetAt: number;
+  goalCooldownUntil: number;
   simFrame: number;
   teamStats: TeamStats;
   audioEvents: AudioEvent[];

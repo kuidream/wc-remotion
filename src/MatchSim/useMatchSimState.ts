@@ -14,7 +14,7 @@ import type { TeamStats } from "./team-stats";
 import type { GameState } from "./types";
 
 const getStatsKey = (teamStats: TeamStats) =>
-  `${teamStats.pryOffense}-${teamStats.fraOffense}-${teamStats.pryDefense}-${teamStats.fraDefense}-${teamStats.teamAName}-${teamStats.teamBName}`;
+  `${teamStats.mexOffense}-${teamStats.engOffense}-${teamStats.mexDefense}-${teamStats.engDefense}-${teamStats.mexStarQuality}-${teamStats.engStarQuality}-${teamStats.teamAName}-${teamStats.teamBName}`;
 
 export const useMatchSimState = (teamStats: TeamStats): GameState => {
   const frame = useCurrentFrame();

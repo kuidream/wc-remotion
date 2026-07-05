@@ -1,8 +1,10 @@
 {
-  "teamAName": "巴拉圭",
-  "teamBName": "法国",
-  "teamAOffense": 20.2,
-  "teamBOffense": 79.8,
-  "teamADefense": 33.2,
-  "teamBDefense": 66.8
+  "teamAName": "墨西哥",
+  "teamBName": "英格兰",
+  "teamAOffense": 29.4,
+  "teamBOffense": 70.6,
+  "teamADefense": 46,
+  "teamBDefense": 54,
+  "teamAStarQuality": 61,
+  "teamBStarQuality": 50
 }

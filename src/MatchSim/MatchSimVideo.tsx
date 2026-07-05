@@ -29,25 +29,25 @@ export const MatchSimVideo: React.FC<MatchSimProps> = (props) => {
   );
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const flagsRef = useRef<{
-    py: HTMLImageElement | null;
-    fr: HTMLImageElement | null;
-  }>({ py: null, fr: null });
+    mx: HTMLImageElement | null;
+    eng: HTMLImageElement | null;
+  }>({ mx: null, eng: null });
   const frame = useCurrentFrame();
   const state = useMatchSimState(teamStats);
 
   useEffect(() => {
-    const imgPy = new Image();
-    imgPy.crossOrigin = "anonymous";
-    imgPy.src = "https://flagcdn.com/w160/py.png";
-    imgPy.onload = () => {
-      flagsRef.current.py = imgPy;
+    const imgMx = new Image();
+    imgMx.crossOrigin = "anonymous";
+    imgMx.src = "https://flagcdn.com/w160/mx.png";
+    imgMx.onload = () => {
+      flagsRef.current.mx = imgMx;
     };
 
-    const imgFr = new Image();
-    imgFr.crossOrigin = "anonymous";
-    imgFr.src = "https://flagcdn.com/w160/fr.png";
-    imgFr.onload = () => {
-      flagsRef.current.fr = imgFr;
+    const imgEng = new Image();
+    imgEng.crossOrigin = "anonymous";
+    imgEng.src = "https://flagcdn.com/w160/gb-eng.png";
+    imgEng.onload = () => {
+      flagsRef.current.eng = imgEng;
     };
   }, []);
 

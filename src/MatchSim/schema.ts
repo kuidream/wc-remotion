@@ -9,24 +9,30 @@ export const matchSimSchema = z.object({
   teamBOffense: percent,
   teamADefense: percent,
   teamBDefense: percent,
+  teamAStarQuality: percent,
+  teamBStarQuality: percent,
 });
 
 export type MatchSimProps = z.infer<typeof matchSimSchema>;
 
 export const defaultMatchSimProps: MatchSimProps = {
-  teamAName: "巴拉圭",
-  teamBName: "法国",
-  teamAOffense: 20.2,
-  teamBOffense: 79.8,
-  teamADefense: 33.2,
-  teamBDefense: 66.8,
+  teamAName: "墨西哥",
+  teamBName: "英格兰",
+  teamAOffense: 29.4,
+  teamBOffense: 70.6,
+  teamADefense: 46,
+  teamBDefense: 54,
+  teamAStarQuality: 61,
+  teamBStarQuality: 50,
 };
 
 export const balancedMatchSimProps: MatchSimProps = {
-  teamAName: "巴拉圭",
-  teamBName: "法国",
+  teamAName: "墨西哥",
+  teamBName: "英格兰",
   teamAOffense: 50,
   teamBOffense: 50,
   teamADefense: 50,
   teamBDefense: 50,
+  teamAStarQuality: 50,
+  teamBStarQuality: 50,
 };

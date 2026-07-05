@@ -5,18 +5,39 @@ import {
   BASE_SPEED,
   FRAMES_PER_MATCH_MINUTE,
   GOAL_RESET_DELAY,
+  INJURY_TIME_MAX,
+  INJURY_TIME_MIN,
   LOGICAL_WIDTH,
   MAX_SPEED,
   MIN_SPEED,
   PHYSICS_SUBSTEPS,
   POST_DURATION_FRAMES,
   PRE_DURATION_FRAMES,
+  REGULATION_MINUTES,
   SIMULATION_SEED,
   TICKS_PER_MATCH_MINUTE,
 } from "./constants";
 import { hashFrame, mulberry32 } from "./random";
 import { defaultMatchSimProps } from "./schema";
-import { getRingArcs, resolveTeamStats, type TeamStats } from "./team-stats";
+import {
+  defenseDischargeWeight,
+  getEffectiveOffenseShares,
+  getRingArcs,
+  INNER_RING_BONUS_CAP,
+  PLAYER_DISCHARGE_BASE_CHANCE,
+  goalPenetrationFromShare,
+  goalPenetrationFromStar,
+  pocketPunchFromShare,
+  pocketPunchFromStar,
+  ringBoostFromShare,
+  ringSlowFromShare,
+  resolveTeamStats,
+  starInnerBonusFactor,
+  starInnerBoostMultiplier,
+  starInnerSlowMultiplier,
+  teamStarShare,
+  type TeamStats,
+} from "./team-stats";
 import type { Ball, GameState, Particle, Player } from "./types";
 
 const pushAudioEvent = (
@@ -34,7 +55,7 @@ const hitVolume = (intensity = 1) =>
 const defaultTeamStats = resolveTeamStats(defaultMatchSimProps);
 
 const addTeam = (
-  team: "PRY" | "FRA",
+  team: "MEX" | "ENG",
   baseX: number,
   baseY: number,
   dir: number,
@@ -97,12 +118,15 @@ export const createInitialState = (
   const rand = mulberry32(SIMULATION_SEED);
   const arenaCenter = { x: width / 2, y: height / 2 - 10 };
   const arenaRadius = Math.min(width, height) / 2 - ARENA_MARGIN;
-  const matchLength = 90 + Math.floor(rand() * 6);
+  const injuryTime =
+    INJURY_TIME_MIN +
+    Math.floor(rand() * (INJURY_TIME_MAX - INJURY_TIME_MIN + 1));
+  const matchLength = REGULATION_MINUTES + injuryTime;
 
   const balls: Ball[] = [
     {
-      id: "PRY",
-      team: "Paraguay",
+      id: "MEX",
+      team: teamStats.teamAName,
       x: arenaCenter.x - BALL_RADIUS,
       y: arenaCenter.y,
       vx: 2.0,
@@ -110,14 +134,14 @@ export const createInitialState = (
       radius: BALL_RADIUS,
       rotation: 0,
       angularVelocity: 0.05,
-      color: "#e62e2e",
-      glowColor: "#ffcc00",
+      color: "#006847",
+      glowColor: "#ce1126",
       coreColor: "#ffffff",
       tail: [],
     },
     {
-      id: "FRA",
-      team: "France",
+      id: "ENG",
+      team: teamStats.teamBName,
       x: arenaCenter.x + BALL_RADIUS,
       y: arenaCenter.y,
       vx: -2.0,
@@ -125,8 +149,8 @@ export const createInitialState = (
       radius: BALL_RADIUS,
       rotation: 0,
       angularVelocity: -0.05,
-      color: "#1e3a8a",
-      glowColor: "#ff3366",
+      color: "#f8fafc",
+      glowColor: "#cf081f",
       coreColor: "#ffffff",
       tail: [],
     },
@@ -154,6 +178,7 @@ export const createInitialState = (
     scoreA: 0,
     scoreB: 0,
     matchLength,
+    injuryTime,
     matchMinute: 0,
     balls,
     particles,
@@ -162,7 +187,7 @@ export const createInitialState = (
       y: arenaCenter.y,
       radius: arenaRadius,
       pocketAngle: -Math.PI / 2,
-      pocketWidth: Math.PI / 6,
+      pocketWidth: Math.PI / 8,
     },
     width,
     height,
@@ -170,13 +195,14 @@ export const createInitialState = (
     shake: 0,
     hitStop: 0,
     goalFlash: 0,
-    ringBonuses: { PRY: { inner: 0, outer: 0 }, FRA: { inner: 0, outer: 0 } },
+    ringBonuses: { MEX: { inner: 0, outer: 0 }, ENG: { inner: 0, outer: 0 } },
     players: [
-      ...addTeam("PRY", width / 2 - 120, 35, 1, rand),
-      ...addTeam("FRA", width / 2 + 120, 35, -1, rand),
+      ...addTeam("MEX", width / 2 - 120, 35, 1, rand),
+      ...addTeam("ENG", width / 2 + 120, 35, -1, rand),
     ],
     lightnings: [],
     goalResetAt: -1,
+    goalCooldownUntil: -1,
     simFrame: 0,
     teamStats,
     audioEvents: [],
@@ -265,12 +291,13 @@ const triggerGoal = (
   state.hitStop = 20;
   state.goalFlash = 1.0;
   state.goalResetAt = compFrame + GOAL_RESET_DELAY;
+  state.goalCooldownUntil = compFrame + GOAL_RESET_DELAY + 15;
 
   const b1 = state.balls[0];
   const b2 = state.balls[1];
   spawnSparks(state, state.arena.x, state.arena.y, b1.glowColor, b2.glowColor, true, simStep);
 
-  if (scorerId === "PRY") {
+  if (scorerId === "MEX") {
     state.scoreA += 1;
   } else {
     state.scoreB += 1;
@@ -313,76 +340,107 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
 
   const { arena, balls, ringBonuses, players } = state;
   const slowSpin = state.frames * 0.005;
-  const arcs = getRingArcs(state.teamStats, slowSpin, ringBonuses);
 
-  const pryInnerStart = arcs.pryInnerStart;
-  const pryInnerEnd = arcs.pryInnerEnd;
-  const fraInnerStart = arcs.fraInnerStart;
-  const fraInnerEnd = arcs.fraInnerEnd;
+  ringBonuses.MEX.inner *= 0.995;
+  ringBonuses.MEX.outer *= 0.995;
+  ringBonuses.ENG.inner *= 0.995;
+  ringBonuses.ENG.outer *= 0.995;
+  ringBonuses.MEX.inner = Math.min(ringBonuses.MEX.inner, INNER_RING_BONUS_CAP);
+  ringBonuses.MEX.outer = Math.min(ringBonuses.MEX.outer, INNER_RING_BONUS_CAP);
+  ringBonuses.ENG.inner = Math.min(ringBonuses.ENG.inner, INNER_RING_BONUS_CAP);
+  ringBonuses.ENG.outer = Math.min(ringBonuses.ENG.outer, INNER_RING_BONUS_CAP);
 
-  const pryOuterStart = arcs.pryOuterStart;
-  const pryOuterEnd = arcs.pryOuterEnd;
-  const fraOuterStart = arcs.fraOuterStart;
-  const fraOuterEnd = arcs.fraOuterEnd;
-
-  ringBonuses.PRY.inner *= 0.995;
-  ringBonuses.PRY.outer *= 0.995;
-  ringBonuses.FRA.inner *= 0.995;
-  ringBonuses.FRA.outer *= 0.995;
+  const mexStarShare = teamStarShare(
+    state.teamStats.mexStarQuality,
+    state.teamStats.engStarQuality,
+  );
+  const engStarShare = teamStarShare(
+    state.teamStats.engStarQuality,
+    state.teamStats.mexStarQuality,
+  );
 
   players.forEach((p) => {
     if (p.cooldown > 0) {
       p.cooldown--;
-    } else if (rand() < 0.005) {
-      p.cooldown = 120 + Math.floor(rand() * 180);
-      let targetRing = arena.radius - 10;
-      let color = p.team === "PRY" ? "#ffcc00" : "#ff3366";
-
-      if (p.type === "forward") {
-        targetRing = arena.radius - 30;
-        color = p.team === "PRY" ? "#a3e635" : "#fca5a5";
-        ringBonuses[p.team].inner +=
-          (Math.PI * 0.6 - ringBonuses[p.team].inner) * 0.25;
-      } else if (p.type === "defender" || p.type === "goalkeeper") {
-        ringBonuses[p.team].outer +=
-          (Math.PI * 0.6 - ringBonuses[p.team].outer) * 0.25;
-      } else {
-        ringBonuses[p.team].inner +=
-          (Math.PI * 0.6 - ringBonuses[p.team].inner) * 0.12;
-        ringBonuses[p.team].outer +=
-          (Math.PI * 0.6 - ringBonuses[p.team].outer) * 0.12;
-      }
-
-      const angleToCenter = Math.atan2(arena.y - p.y, arena.x - p.x);
-      state.lightnings.push({
-        startX: p.x,
-        startY: p.y,
-        endX: arena.x - Math.cos(angleToCenter) * targetRing,
-        endY: arena.y - Math.sin(angleToCenter) * targetRing,
-        life: 15,
-        maxLife: 15,
-        color,
-        jitterSeed: hashFrame(SIMULATION_SEED, simStep, p.x),
-      });
+      return;
     }
+
+    const starQuality =
+      p.team === "MEX"
+        ? state.teamStats.mexStarQuality
+        : state.teamStats.engStarQuality;
+    const defense =
+      p.team === "MEX"
+        ? state.teamStats.mexDefense
+        : state.teamStats.engDefense;
+
+    let dischargeChance = PLAYER_DISCHARGE_BASE_CHANCE;
+    if (p.type === "defender" || p.type === "goalkeeper") {
+      dischargeChance =
+        PLAYER_DISCHARGE_BASE_CHANCE * defenseDischargeWeight(defense);
+    }
+
+    if (rand() >= dischargeChance) {
+      return;
+    }
+
+    p.cooldown = 120 + Math.floor(rand() * 180);
+    let targetRing = arena.radius - 10;
+    let color = p.team === "MEX" ? "#006847" : "#cf081f";
+
+    if (p.type === "forward") {
+      targetRing = arena.radius - 30;
+      color = p.team === "MEX" ? "#22c55e" : "#fca5a5";
+      const innerFactor = starInnerBonusFactor(starQuality);
+      ringBonuses[p.team].inner +=
+        (Math.PI * 0.6 - ringBonuses[p.team].inner) * innerFactor;
+    } else if (p.type === "defender" || p.type === "goalkeeper") {
+      ringBonuses[p.team].outer +=
+        (Math.PI * 0.6 - ringBonuses[p.team].outer) * 0.25;
+    } else {
+      ringBonuses[p.team].inner +=
+        (Math.PI * 0.6 - ringBonuses[p.team].inner) * 0.12;
+      ringBonuses[p.team].outer +=
+        (Math.PI * 0.6 - ringBonuses[p.team].outer) * 0.12;
+    }
+
+    const angleToCenter = Math.atan2(arena.y - p.y, arena.x - p.x);
+    state.lightnings.push({
+      startX: p.x,
+      startY: p.y,
+      endX: arena.x - Math.cos(angleToCenter) * targetRing,
+      endY: arena.y - Math.sin(angleToCenter) * targetRing,
+      life: 15,
+      maxLife: 15,
+      color,
+      jitterSeed: hashFrame(SIMULATION_SEED, simStep, p.x),
+    });
   });
 
   state.lightnings = state.lightnings.filter((l) => l.life-- > 0);
 
-  const offenseTotal = state.teamStats.pryOffense + state.teamStats.fraOffense;
-  const pryOffenseShare =
-    offenseTotal > 0 ? state.teamStats.pryOffense / offenseTotal : 0.5;
-  const fraOffenseShare =
-    offenseTotal > 0 ? state.teamStats.fraOffense / offenseTotal : 0.5;
-  const ringBoost = (share: number) => 1.02 + share * 0.2;
-  const ringSlow = (share: number) => 1.02 - share * 0.14;
+  const arcs = getRingArcs(state.teamStats, slowSpin, ringBonuses);
+
+  const mexInnerStart = arcs.mexInnerStart;
+  const mexInnerEnd = arcs.mexInnerEnd;
+  const engInnerStart = arcs.engInnerStart;
+  const engInnerEnd = arcs.engInnerEnd;
+
+  const mexOuterStart = arcs.mexOuterStart;
+  const mexOuterEnd = arcs.mexOuterEnd;
+  const engOuterStart = arcs.engOuterStart;
+  const engOuterEnd = arcs.engOuterEnd;
+
+  const offenseShares = getEffectiveOffenseShares(state.teamStats);
+  const mexOffenseShare = offenseShares.mexOffenseShare;
+  const engOffenseShare = offenseShares.engOffenseShare;
 
   balls.forEach((b) => {
-    b.rotation += b.angularVelocity;
+    if (b.x < 0) {
+      return;
+    }
 
-    const teamOffense =
-      b.id === "PRY" ? state.teamStats.pryOffense : state.teamStats.fraOffense;
-    const offenseFactor = 1 + (teamOffense / 50 - 1) * 0.15;
+    b.rotation += b.angularVelocity;
 
     const centerPullX = (arena.x - b.x) * 0.0002;
     const centerPullY = (arena.y - b.y) * 0.0002;
@@ -390,41 +448,73 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
     b.vy += centerPullY + (rand() - 0.5) * 0.05;
 
     const speed = Math.hypot(b.vx, b.vy);
+    const offenseShare = b.id === "MEX" ? mexOffenseShare : engOffenseShare;
+    const starShare = b.id === "MEX" ? mexStarShare : engStarShare;
+
+    const distToCenterForRings = Math.hypot(b.x - arena.x, b.y - arena.y);
+    const angleToCenter = Math.atan2(b.y - arena.y, b.x - arena.x);
+    const inMexInner = isAngleInRing(angleToCenter, mexInnerStart, mexInnerEnd);
+    const inEngInner = isAngleInRing(angleToCenter, engInnerStart, engInnerEnd);
+
     if (speed > 0) {
-      const speedDiff = BASE_SPEED * offenseFactor - speed;
+      const speedDiff = BASE_SPEED - speed;
       b.vx += (b.vx / speed) * speedDiff * 0.02;
       b.vy += (b.vy / speed) * speedDiff * 0.02;
     }
 
-    const distToCenterForRings = Math.hypot(b.x - arena.x, b.y - arena.y);
     if (
       distToCenterForRings > arena.radius - 50 &&
       distToCenterForRings < arena.radius - 10
     ) {
-      const angleToCenter = Math.atan2(b.y - arena.y, b.x - arena.x);
-      const inA = isAngleInRing(angleToCenter, pryInnerStart, pryInnerEnd);
-      const inB = isAngleInRing(angleToCenter, fraInnerStart, fraInnerEnd);
+      if (inMexInner && !inEngInner) {
+        if (b.id === "MEX") {
+          const mult =
+            ringBoostFromShare(mexOffenseShare) *
+            starInnerBoostMultiplier(mexStarShare);
+          b.vx *= mult;
+          b.vy *= mult;
+        } else {
+          const mult =
+            ringSlowFromShare(mexOffenseShare) *
+            starInnerSlowMultiplier(mexStarShare);
+          b.vx *= mult;
+          b.vy *= mult;
+        }
+      } else if (inEngInner && !inMexInner) {
+        if (b.id === "ENG") {
+          const mult =
+            ringBoostFromShare(engOffenseShare) *
+            starInnerBoostMultiplier(engStarShare);
+          b.vx *= mult;
+          b.vy *= mult;
+        } else {
+          const mult =
+            ringSlowFromShare(engOffenseShare) *
+            starInnerSlowMultiplier(engStarShare);
+          b.vx *= mult;
+          b.vy *= mult;
+        }
+      }
+    }
 
-      if (inA && !inB) {
-        if (b.id === "PRY") {
-          const mult = ringBoost(pryOffenseShare);
-          b.vx *= mult;
-          b.vy *= mult;
-        } else {
-          const mult = ringSlow(pryOffenseShare);
-          b.vx *= mult;
-          b.vy *= mult;
-        }
-      } else if (inB && !inA) {
-        if (b.id === "FRA") {
-          const mult = ringBoost(fraOffenseShare);
-          b.vx *= mult;
-          b.vy *= mult;
-        } else {
-          const mult = ringSlow(fraOffenseShare);
-          b.vx *= mult;
-          b.vy *= mult;
-        }
+    const pAngle = arena.pocketAngle;
+    let pocketAngleDiff = Math.abs(angleToCenter - pAngle) % (Math.PI * 2);
+    if (pocketAngleDiff > Math.PI) pocketAngleDiff = Math.PI * 2 - pocketAngleDiff;
+    const nearPocket =
+      distToCenterForRings > arena.radius - 28 &&
+      pocketAngleDiff < arena.pocketWidth / 2;
+
+    if (nearPocket) {
+      const pocketNx = Math.cos(pAngle);
+      const pocketNy = Math.sin(pAngle);
+      const radialOut = b.vx * pocketNx + b.vy * pocketNy;
+      if (radialOut > 0.15) {
+        const currentSpeed = Math.hypot(b.vx, b.vy);
+        const punch =
+          pocketPunchFromShare(offenseShare, currentSpeed, MAX_SPEED) +
+          pocketPunchFromStar(starShare, currentSpeed, MAX_SPEED);
+        b.vx += pocketNx * punch;
+        b.vy += pocketNy * punch;
       }
     }
 
@@ -459,12 +549,12 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
 
       if (inPocket) {
         let blocked = false;
-        if (b.id === "PRY") {
-          if (isAngleInRing(normAngle, fraOuterStart, fraOuterEnd)) {
+        if (b.id === "MEX") {
+          if (isAngleInRing(normAngle, engOuterStart, engOuterEnd)) {
             blocked = true;
           }
-        } else if (b.id === "FRA") {
-          if (isAngleInRing(normAngle, pryOuterStart, pryOuterEnd)) {
+        } else if (b.id === "ENG") {
+          if (isAngleInRing(normAngle, mexOuterStart, mexOuterEnd)) {
             blocked = true;
           }
         }
@@ -473,7 +563,16 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
           inPocket = false;
           spawnSparks(state, b.x, b.y, b.glowColor, "#ffffff", false, simStep);
           pushAudioEvent(state, compFrame, "block");
-        } else {
+        }
+      }
+
+      if (inPocket && compFrame >= state.goalCooldownUntil) {
+        const rimSpeed = Math.hypot(b.vx, b.vy);
+        const penetrate =
+          goalPenetrationFromShare(offenseShare, rimSpeed, MAX_SPEED) +
+          goalPenetrationFromStar(starShare, rimSpeed, MAX_SPEED);
+        const goalLine = arena.radius + b.radius * (1 - penetrate);
+        if (distToCenter > goalLine) {
           b.vx = 0;
           b.vy = 0;
           triggerGoal(state, b.id, simStep, compFrame);
@@ -481,9 +580,7 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
           b.y = -1000;
           return;
         }
-      }
-
-      if (distToCenter + b.radius > arena.radius) {
+      } else if (distToCenter + b.radius > arena.radius) {
         const trueNx = (b.x - arena.x) / distToCenter;
         const trueNy = (b.y - arena.y) / distToCenter;
 
