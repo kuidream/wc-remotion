@@ -1,5 +1,5 @@
 import { hashFrame, mulberry32 } from "./random";
-import { getRingArcs } from "./team-stats";
+import { getDemoRingArcs } from "./team-stats";
 import type { Ball, GameState } from "./types";
 
 export const drawArena = (
@@ -47,8 +47,8 @@ export const drawArena = (
     ctx.shadowBlur = 0;
   };
 
-  const slowSpin = frames * 0.005;
-  const arcs = getRingArcs(state.teamStats, slowSpin, state.ringBonuses);
+  const slowSpin = Math.max(0, frames - 1) * 0.005;
+  const arcs = getDemoRingArcs(slowSpin, state.ringBonuses);
 
   drawRing(r - 10, "#006847", arcs.mexOuterStart, arcs.mexOuterEnd, 3, 15);
   drawRing(r - 10, "#cf081f", arcs.engOuterStart, arcs.engOuterEnd, 3, 15);

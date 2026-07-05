@@ -16,26 +16,14 @@ import {
   REGULATION_MINUTES,
   SIMULATION_SEED,
   TICKS_PER_MATCH_MINUTE,
+  getArenaSpeedScale,
 } from "./constants";
 import { hashFrame, mulberry32 } from "./random";
 import { defaultMatchSimProps } from "./schema";
 import {
-  defenseDischargeWeight,
-  getEffectiveOffenseShares,
-  getRingArcs,
-  INNER_RING_BONUS_CAP,
+  getDemoRingArcs,
   PLAYER_DISCHARGE_BASE_CHANCE,
-  goalPenetrationFromShare,
-  goalPenetrationFromStar,
-  pocketPunchFromShare,
-  pocketPunchFromStar,
-  ringBoostFromShare,
-  ringSlowFromShare,
   resolveTeamStats,
-  starInnerBonusFactor,
-  starInnerBoostMultiplier,
-  starInnerSlowMultiplier,
-  teamStarShare,
   type TeamStats,
 } from "./team-stats";
 import type { Ball, GameState, Particle, Player } from "./types";
@@ -118,6 +106,7 @@ export const createInitialState = (
   const rand = mulberry32(SIMULATION_SEED);
   const arenaCenter = { x: width / 2, y: height / 2 - 10 };
   const arenaRadius = Math.min(width, height) / 2 - ARENA_MARGIN;
+  const speedScale = getArenaSpeedScale(arenaRadius);
   const injuryTime =
     INJURY_TIME_MIN +
     Math.floor(rand() * (INJURY_TIME_MAX - INJURY_TIME_MIN + 1));
@@ -129,8 +118,8 @@ export const createInitialState = (
       team: teamStats.teamAName,
       x: arenaCenter.x - BALL_RADIUS,
       y: arenaCenter.y,
-      vx: 2.0,
-      vy: -1.0,
+      vx: 2.0 * speedScale,
+      vy: -1.0 * speedScale,
       radius: BALL_RADIUS,
       rotation: 0,
       angularVelocity: 0.05,
@@ -144,8 +133,8 @@ export const createInitialState = (
       team: teamStats.teamBName,
       x: arenaCenter.x + BALL_RADIUS,
       y: arenaCenter.y,
-      vx: -2.0,
-      vy: 1.0,
+      vx: -2.0 * speedScale,
+      vy: 1.0 * speedScale,
       radius: BALL_RADIUS,
       rotation: 0,
       angularVelocity: -0.05,
@@ -262,20 +251,21 @@ const spawnSparks = (
 const resetBallPositions = (state: GameState) => {
   const { width, height } = state;
   const arenaCenter = { x: width / 2, y: height / 2 - 10 };
+  const speedScale = getArenaSpeedScale(state.arena.radius);
 
   if (state.balls[0]) {
     state.balls[0].x = arenaCenter.x - BALL_RADIUS;
     state.balls[0].y = arenaCenter.y;
-    state.balls[0].vx = 2.0;
-    state.balls[0].vy = -1.0;
+    state.balls[0].vx = 2.0 * speedScale;
+    state.balls[0].vy = -1.0 * speedScale;
     state.balls[0].angularVelocity = 0.05;
     state.balls[0].tail = [];
   }
   if (state.balls[1]) {
     state.balls[1].x = arenaCenter.x + BALL_RADIUS;
     state.balls[1].y = arenaCenter.y;
-    state.balls[1].vx = -2.0;
-    state.balls[1].vy = 1.0;
+    state.balls[1].vx = -2.0 * speedScale;
+    state.balls[1].vy = 1.0 * speedScale;
     state.balls[1].angularVelocity = -0.05;
     state.balls[1].tail = [];
   }
@@ -341,85 +331,51 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
   const { arena, balls, ringBonuses, players } = state;
   const slowSpin = state.frames * 0.005;
 
+  const arcs = getDemoRingArcs(slowSpin, ringBonuses);
+
   ringBonuses.MEX.inner *= 0.995;
   ringBonuses.MEX.outer *= 0.995;
   ringBonuses.ENG.inner *= 0.995;
   ringBonuses.ENG.outer *= 0.995;
-  ringBonuses.MEX.inner = Math.min(ringBonuses.MEX.inner, INNER_RING_BONUS_CAP);
-  ringBonuses.MEX.outer = Math.min(ringBonuses.MEX.outer, INNER_RING_BONUS_CAP);
-  ringBonuses.ENG.inner = Math.min(ringBonuses.ENG.inner, INNER_RING_BONUS_CAP);
-  ringBonuses.ENG.outer = Math.min(ringBonuses.ENG.outer, INNER_RING_BONUS_CAP);
-
-  const mexStarShare = teamStarShare(
-    state.teamStats.mexStarQuality,
-    state.teamStats.engStarQuality,
-  );
-  const engStarShare = teamStarShare(
-    state.teamStats.engStarQuality,
-    state.teamStats.mexStarQuality,
-  );
 
   players.forEach((p) => {
     if (p.cooldown > 0) {
       p.cooldown--;
-      return;
+    } else if (rand() < PLAYER_DISCHARGE_BASE_CHANCE) {
+      p.cooldown = 120 + Math.floor(rand() * 180);
+      let targetRing = arena.radius - 10;
+      let color = p.team === "MEX" ? "#006847" : "#cf081f";
+
+      if (p.type === "forward") {
+        targetRing = arena.radius - 30;
+        color = p.team === "MEX" ? "#22c55e" : "#fca5a5";
+        ringBonuses[p.team].inner +=
+          (Math.PI * 0.6 - ringBonuses[p.team].inner) * 0.25;
+      } else if (p.type === "defender" || p.type === "goalkeeper") {
+        ringBonuses[p.team].outer +=
+          (Math.PI * 0.6 - ringBonuses[p.team].outer) * 0.25;
+      } else {
+        ringBonuses[p.team].inner +=
+          (Math.PI * 0.6 - ringBonuses[p.team].inner) * 0.12;
+        ringBonuses[p.team].outer +=
+          (Math.PI * 0.6 - ringBonuses[p.team].outer) * 0.12;
+      }
+
+      const angleToCenter = Math.atan2(arena.y - p.y, arena.x - p.x);
+      state.lightnings.push({
+        startX: p.x,
+        startY: p.y,
+        endX: arena.x - Math.cos(angleToCenter) * targetRing,
+        endY: arena.y - Math.sin(angleToCenter) * targetRing,
+        life: 15,
+        maxLife: 15,
+        color,
+        jitterSeed: hashFrame(SIMULATION_SEED, simStep, p.x),
+      });
     }
-
-    const starQuality =
-      p.team === "MEX"
-        ? state.teamStats.mexStarQuality
-        : state.teamStats.engStarQuality;
-    const defense =
-      p.team === "MEX"
-        ? state.teamStats.mexDefense
-        : state.teamStats.engDefense;
-
-    let dischargeChance = PLAYER_DISCHARGE_BASE_CHANCE;
-    if (p.type === "defender" || p.type === "goalkeeper") {
-      dischargeChance =
-        PLAYER_DISCHARGE_BASE_CHANCE * defenseDischargeWeight(defense);
-    }
-
-    if (rand() >= dischargeChance) {
-      return;
-    }
-
-    p.cooldown = 120 + Math.floor(rand() * 180);
-    let targetRing = arena.radius - 10;
-    let color = p.team === "MEX" ? "#006847" : "#cf081f";
-
-    if (p.type === "forward") {
-      targetRing = arena.radius - 30;
-      color = p.team === "MEX" ? "#22c55e" : "#fca5a5";
-      const innerFactor = starInnerBonusFactor(starQuality);
-      ringBonuses[p.team].inner +=
-        (Math.PI * 0.6 - ringBonuses[p.team].inner) * innerFactor;
-    } else if (p.type === "defender" || p.type === "goalkeeper") {
-      ringBonuses[p.team].outer +=
-        (Math.PI * 0.6 - ringBonuses[p.team].outer) * 0.25;
-    } else {
-      ringBonuses[p.team].inner +=
-        (Math.PI * 0.6 - ringBonuses[p.team].inner) * 0.12;
-      ringBonuses[p.team].outer +=
-        (Math.PI * 0.6 - ringBonuses[p.team].outer) * 0.12;
-    }
-
-    const angleToCenter = Math.atan2(arena.y - p.y, arena.x - p.x);
-    state.lightnings.push({
-      startX: p.x,
-      startY: p.y,
-      endX: arena.x - Math.cos(angleToCenter) * targetRing,
-      endY: arena.y - Math.sin(angleToCenter) * targetRing,
-      life: 15,
-      maxLife: 15,
-      color,
-      jitterSeed: hashFrame(SIMULATION_SEED, simStep, p.x),
-    });
   });
 
   state.lightnings = state.lightnings.filter((l) => l.life-- > 0);
-
-  const arcs = getRingArcs(state.teamStats, slowSpin, ringBonuses);
 
   const mexInnerStart = arcs.mexInnerStart;
   const mexInnerEnd = arcs.mexInnerEnd;
@@ -431,9 +387,10 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
   const engOuterStart = arcs.engOuterStart;
   const engOuterEnd = arcs.engOuterEnd;
 
-  const offenseShares = getEffectiveOffenseShares(state.teamStats);
-  const mexOffenseShare = offenseShares.mexOffenseShare;
-  const engOffenseShare = offenseShares.engOffenseShare;
+  const speedScale = getArenaSpeedScale(arena.radius);
+  const baseSpeed = BASE_SPEED * speedScale;
+  const maxSpeed = MAX_SPEED * speedScale;
+  const minSpeed = MIN_SPEED * speedScale;
 
   balls.forEach((b) => {
     if (b.x < 0) {
@@ -448,8 +405,6 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
     b.vy += centerPullY + (rand() - 0.5) * 0.05;
 
     const speed = Math.hypot(b.vx, b.vy);
-    const offenseShare = b.id === "MEX" ? mexOffenseShare : engOffenseShare;
-    const starShare = b.id === "MEX" ? mexStarShare : engStarShare;
 
     const distToCenterForRings = Math.hypot(b.x - arena.x, b.y - arena.y);
     const angleToCenter = Math.atan2(b.y - arena.y, b.x - arena.x);
@@ -457,7 +412,7 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
     const inEngInner = isAngleInRing(angleToCenter, engInnerStart, engInnerEnd);
 
     if (speed > 0) {
-      const speedDiff = BASE_SPEED - speed;
+      const speedDiff = baseSpeed - speed;
       b.vx += (b.vx / speed) * speedDiff * 0.02;
       b.vy += (b.vy / speed) * speedDiff * 0.02;
     }
@@ -468,63 +423,30 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
     ) {
       if (inMexInner && !inEngInner) {
         if (b.id === "MEX") {
-          const mult =
-            ringBoostFromShare(mexOffenseShare) *
-            starInnerBoostMultiplier(mexStarShare);
-          b.vx *= mult;
-          b.vy *= mult;
+          b.vx *= 1.05;
+          b.vy *= 1.05;
         } else {
-          const mult =
-            ringSlowFromShare(mexOffenseShare) *
-            starInnerSlowMultiplier(mexStarShare);
-          b.vx *= mult;
-          b.vy *= mult;
+          b.vx *= 0.95;
+          b.vy *= 0.95;
         }
       } else if (inEngInner && !inMexInner) {
         if (b.id === "ENG") {
-          const mult =
-            ringBoostFromShare(engOffenseShare) *
-            starInnerBoostMultiplier(engStarShare);
-          b.vx *= mult;
-          b.vy *= mult;
+          b.vx *= 1.05;
+          b.vy *= 1.05;
         } else {
-          const mult =
-            ringSlowFromShare(engOffenseShare) *
-            starInnerSlowMultiplier(engStarShare);
-          b.vx *= mult;
-          b.vy *= mult;
+          b.vx *= 0.95;
+          b.vy *= 0.95;
         }
-      }
-    }
-
-    const pAngle = arena.pocketAngle;
-    let pocketAngleDiff = Math.abs(angleToCenter - pAngle) % (Math.PI * 2);
-    if (pocketAngleDiff > Math.PI) pocketAngleDiff = Math.PI * 2 - pocketAngleDiff;
-    const nearPocket =
-      distToCenterForRings > arena.radius - 28 &&
-      pocketAngleDiff < arena.pocketWidth / 2;
-
-    if (nearPocket) {
-      const pocketNx = Math.cos(pAngle);
-      const pocketNy = Math.sin(pAngle);
-      const radialOut = b.vx * pocketNx + b.vy * pocketNy;
-      if (radialOut > 0.15) {
-        const currentSpeed = Math.hypot(b.vx, b.vy);
-        const punch =
-          pocketPunchFromShare(offenseShare, currentSpeed, MAX_SPEED) +
-          pocketPunchFromStar(starShare, currentSpeed, MAX_SPEED);
-        b.vx += pocketNx * punch;
-        b.vy += pocketNy * punch;
       }
     }
 
     const newSpeed = Math.hypot(b.vx, b.vy);
-    if (newSpeed > MAX_SPEED) {
-      b.vx = (b.vx / newSpeed) * MAX_SPEED;
-      b.vy = (b.vy / newSpeed) * MAX_SPEED;
-    } else if (newSpeed < MIN_SPEED) {
-      b.vx = (b.vx / newSpeed) * MIN_SPEED;
-      b.vy = (b.vy / newSpeed) * MIN_SPEED;
+    if (newSpeed > maxSpeed) {
+      b.vx = (b.vx / newSpeed) * maxSpeed;
+      b.vy = (b.vy / newSpeed) * maxSpeed;
+    } else if (newSpeed < minSpeed) {
+      b.vx = (b.vx / newSpeed) * minSpeed;
+      b.vy = (b.vy / newSpeed) * minSpeed;
     }
 
     b.x += b.vx;
@@ -567,12 +489,7 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
       }
 
       if (inPocket && compFrame >= state.goalCooldownUntil) {
-        const rimSpeed = Math.hypot(b.vx, b.vy);
-        const penetrate =
-          goalPenetrationFromShare(offenseShare, rimSpeed, MAX_SPEED) +
-          goalPenetrationFromStar(starShare, rimSpeed, MAX_SPEED);
-        const goalLine = arena.radius + b.radius * (1 - penetrate);
-        if (distToCenter > goalLine) {
+        if (distToCenter > arena.radius + b.radius) {
           b.vx = 0;
           b.vy = 0;
           triggerGoal(state, b.id, simStep, compFrame);
@@ -658,7 +575,7 @@ const updatePhysics = (state: GameState, simStep: number, compFrame: number) => 
       const impactForce = Math.abs(impulse);
       state.shake = Math.min(8, impactForce * 1.5);
 
-      if (impactForce > 6) {
+      if (impactForce > 6 * speedScale) {
         state.hitStop = 2;
       }
     }

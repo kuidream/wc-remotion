@@ -33,3 +33,9 @@ export const FRAMES_PER_MATCH_MINUTE =
 export const GOAL_RESET_DELAY = VIDEO_FPS; // demo: setTimeout 1000ms @ 60Hz
 
 export const SIMULATION_SEED = 42;
+
+/** demo 典型手机宽度约 390px 时的场点半径，用于按场地尺寸等比缩放速度 */
+export const DEMO_ARENA_REFERENCE_RADIUS = 155;
+
+export const getArenaSpeedScale = (arenaRadius: number) =>
+  arenaRadius / DEMO_ARENA_REFERENCE_RADIUS;
